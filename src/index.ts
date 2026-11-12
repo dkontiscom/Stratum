@@ -4,12 +4,16 @@
 //   scheduled → importer cron              (src/importer — wired)
 import type { Env } from "./shared";
 import { runImportBatch } from "./importer";
+import { handleApiRequest } from "./server/router";
 
 export default {
-  async fetch(_request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
-    // TODO: route to src/server
-    return new Response("Stratum: server not yet implemented\n", {
-      status: 501,
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/rest/")) {
+      return handleApiRequest(request, env);
+    }
+    return new Response("Stratum: OpenSubsonic API at /rest/\n", {
+      status: 404,
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
   },
