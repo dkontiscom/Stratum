@@ -30,6 +30,11 @@ import {
   handleGetRandomSongs,
 } from "./handlers/browsing";
 import { handleSearch2, handleSearch3 } from "./handlers/search";
+import {
+  handleStream,
+  handleDownload,
+  handleGetCoverArt,
+} from "./handlers/streaming";
 
 /** Uniform handler shape; later slices register more entries the same way. */
 type Handler = (params: URLSearchParams, env: Env) => Promise<Response>;
@@ -56,6 +61,10 @@ const ROUTES: Record<string, Handler> = {
   // Slice 2: search
   search2: handleSearch2,
   search3: handleSearch3,
+  // Slice 3: streaming + media retrieval (presign + 302, never byte-proxy)
+  stream: handleStream,
+  download: handleDownload,
+  getCoverArt: handleGetCoverArt,
 };
 
 /** Merge a POST body (JSON or form-encoded) into the query params. */
