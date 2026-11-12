@@ -13,6 +13,23 @@ import {
   handleGetLicense,
   handleGetOpenSubsonicExtensions,
 } from "./handlers/system";
+import {
+  handleGetMusicFolders,
+  handleGetIndexes,
+  handleGetMusicDirectory,
+  handleGetArtists,
+  handleGetArtist,
+  handleGetArtistInfo2,
+  handleGetAlbum,
+  handleGetAlbumInfo2,
+  handleGetAlbumList2,
+  handleGetAlbumList,
+  handleGetSong,
+  handleGetGenres,
+  handleGetSongsByGenre,
+  handleGetRandomSongs,
+} from "./handlers/browsing";
+import { handleSearch2, handleSearch3 } from "./handlers/search";
 
 /** Uniform handler shape; later slices register more entries the same way. */
 type Handler = (params: URLSearchParams, env: Env) => Promise<Response>;
@@ -21,6 +38,24 @@ const ROUTES: Record<string, Handler> = {
   ping: handlePing,
   getLicense: handleGetLicense,
   getOpenSubsonicExtensions: handleGetOpenSubsonicExtensions,
+  // Slice 2: browsing + lists
+  getMusicFolders: handleGetMusicFolders,
+  getIndexes: handleGetIndexes,
+  getMusicDirectory: handleGetMusicDirectory,
+  getArtists: handleGetArtists,
+  getArtist: handleGetArtist,
+  getArtistInfo2: handleGetArtistInfo2,
+  getAlbum: handleGetAlbum,
+  getAlbumInfo2: handleGetAlbumInfo2,
+  getAlbumList2: handleGetAlbumList2,
+  getAlbumList: handleGetAlbumList,
+  getSong: handleGetSong,
+  getGenres: handleGetGenres,
+  getSongsByGenre: handleGetSongsByGenre,
+  getRandomSongs: handleGetRandomSongs,
+  // Slice 2: search
+  search2: handleSearch2,
+  search3: handleSearch3,
 };
 
 /** Merge a POST body (JSON or form-encoded) into the query params. */
