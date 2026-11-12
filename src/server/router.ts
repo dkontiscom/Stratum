@@ -52,6 +52,20 @@ import {
   handleGetLyrics,
   handleGetLyricsBySongId,
 } from "./handlers/personal";
+import {
+  handleGetPlaylists,
+  handleGetPlaylist,
+  handleCreatePlaylist,
+  handleUpdatePlaylist,
+  handleDeletePlaylist,
+} from "./handlers/playlists";
+import {
+  handleSavePlayQueue,
+  handleGetPlayQueue,
+  handleCreateBookmark,
+  handleGetBookmarks,
+  handleDeleteBookmark,
+} from "./handlers/queue";
 
 /** Uniform handler shape; later slices register more entries the same way. */
 type Handler = (params: URLSearchParams, env: Env) => Promise<Response>;
@@ -97,6 +111,18 @@ const ROUTES: Record<string, Handler> = {
   getSimilarSongs2: handleGetSimilarSongs2,
   getLyrics: handleGetLyrics,
   getLyricsBySongId: handleGetLyricsBySongId,
+  // Slice 5: playlists
+  getPlaylists: handleGetPlaylists,
+  getPlaylist: handleGetPlaylist,
+  createPlaylist: handleCreatePlaylist,
+  updatePlaylist: handleUpdatePlaylist,
+  deletePlaylist: handleDeletePlaylist,
+  // Slice 5: play queue + bookmarks
+  savePlayQueue: handleSavePlayQueue,
+  getPlayQueue: handleGetPlayQueue,
+  createBookmark: handleCreateBookmark,
+  getBookmarks: handleGetBookmarks,
+  deleteBookmark: handleDeleteBookmark,
 };
 
 /**
