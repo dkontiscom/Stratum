@@ -1,0 +1,32 @@
+{
+  // Stratum — OpenSubsonic server + importer, one Worker.
+  //   fetch     → Subsonic API (serving)
+  //   scheduled → importer cron (scan storage → D1)
+  "name": "stratum",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "observability": { "enabled": true },
+
+  // Importer runs every minute; it processes one small batch of pending files and exits
+  // (a cheap no-op when the worklist is empty). Fast backfill without an external driver.
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "stratum-db",
+      "database_id": "YOUR_D1_DATABASE_ID" // fill in after `wrangler d1 create stratum-db`
+    }
+  ],
+
+  // Non-secret config only. Secrets go via `wrangler secret put`:
+  //   ADMIN_PASSWORD, and per-backend <SECRET_REF>_ACCESS_KEY / <SECRET_REF>_SECRET_KEY.
+  // Storage backends themselves live in the D1 `storage_backends` table, not here.
+  "vars": {
+    "ADMIN_USERNAME": "admin",
+    "SERVER_NAME": "stratum",
+    "SUBSONIC_API_VERSION": "1.16.1"
+  }
+}

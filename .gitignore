@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build / cache
+dist/
+*.tsbuildinfo
+.wrangler/
+
+# local secrets & env (never commit)
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+
+# logs
+*.log
+
+# OS
+.DS_Store
