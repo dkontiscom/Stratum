@@ -66,6 +66,22 @@ import {
   handleGetBookmarks,
   handleDeleteBookmark,
 } from "./handlers/queue";
+import {
+  handleGetUser,
+  handleGetUsers,
+  handleCreateUser,
+  handleUpdateUser,
+  handleDeleteUser,
+  handleChangePassword,
+  handleGetAvatar,
+} from "./handlers/users";
+import {
+  handleGetInternetRadioStations,
+  handleCreateInternetRadioStation,
+  handleUpdateInternetRadioStation,
+  handleDeleteInternetRadioStation,
+} from "./handlers/radio";
+import { handleGetScanStatus, handleStartScan } from "./handlers/scan";
 
 /** Uniform handler shape; later slices register more entries the same way. */
 type Handler = (params: URLSearchParams, env: Env) => Promise<Response>;
@@ -123,6 +139,22 @@ const ROUTES: Record<string, Handler> = {
   createBookmark: handleCreateBookmark,
   getBookmarks: handleGetBookmarks,
   deleteBookmark: handleDeleteBookmark,
+  // Slice 6: user management (admin-gated except self-view / self-changePassword)
+  getUser: handleGetUser,
+  getUsers: handleGetUsers,
+  createUser: handleCreateUser,
+  updateUser: handleUpdateUser,
+  deleteUser: handleDeleteUser,
+  changePassword: handleChangePassword,
+  getAvatar: handleGetAvatar,
+  // Slice 6: internet radio (reads open; mutations admin-only)
+  getInternetRadioStations: handleGetInternetRadioStations,
+  createInternetRadioStation: handleCreateInternetRadioStation,
+  updateInternetRadioStation: handleUpdateInternetRadioStation,
+  deleteInternetRadioStation: handleDeleteInternetRadioStation,
+  // Slice 6: scan status (wired to the cron importer; startScan is admin-only)
+  getScanStatus: handleGetScanStatus,
+  startScan: handleStartScan,
 };
 
 /**
