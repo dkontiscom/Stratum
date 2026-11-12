@@ -169,6 +169,18 @@ CREATE TABLE IF NOT EXISTS play_history (
   played_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Now playing (live state, NOT history) ───────────────────────────────────────
+-- One row per user: what they are currently playing. Upserted on every scrobble (both
+-- the submission=false "now playing" ping and the submission=true completed play).
+-- getNowPlaying reads this within a short freshness window. Kept separate from
+-- play_history so now-playing pings never pollute the completed-play log.
+CREATE TABLE IF NOT EXISTS now_playing (
+  user       TEXT PRIMARY KEY,
+  track_id   TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+  player     TEXT,                          -- client name (Subsonic `c` param)
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ── Bookmarks ────────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS bookmarks (
   user        TEXT NOT NULL,

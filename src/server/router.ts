@@ -35,6 +35,23 @@ import {
   handleDownload,
   handleGetCoverArt,
 } from "./handlers/streaming";
+import {
+  handleStar,
+  handleUnstar,
+  handleSetRating,
+  handleScrobble,
+  handlePlaybackReport,
+} from "./handlers/annotations";
+import {
+  handleGetStarred2,
+  handleGetStarred,
+  handleGetNowPlaying,
+  handleGetTopSongs,
+  handleGetSimilarSongs,
+  handleGetSimilarSongs2,
+  handleGetLyrics,
+  handleGetLyricsBySongId,
+} from "./handlers/personal";
 
 /** Uniform handler shape; later slices register more entries the same way. */
 type Handler = (params: URLSearchParams, env: Env) => Promise<Response>;
@@ -65,20 +82,49 @@ const ROUTES: Record<string, Handler> = {
   stream: handleStream,
   download: handleDownload,
   getCoverArt: handleGetCoverArt,
+  // Slice 4: annotations (stars / ratings / scrobble)
+  star: handleStar,
+  unstar: handleUnstar,
+  setRating: handleSetRating,
+  scrobble: handleScrobble,
+  playbackReport: handlePlaybackReport,
+  // Slice 4: personal read-lists + lyrics
+  getStarred2: handleGetStarred2,
+  getStarred: handleGetStarred,
+  getNowPlaying: handleGetNowPlaying,
+  getTopSongs: handleGetTopSongs,
+  getSimilarSongs: handleGetSimilarSongs,
+  getSimilarSongs2: handleGetSimilarSongs2,
+  getLyrics: handleGetLyrics,
+  getLyricsBySongId: handleGetLyricsBySongId,
 };
 
-/** Merge a POST body (JSON or form-encoded) into the query params. */
+/**
+ * Merge a POST body (JSON or form-encoded) into the query params. Body values override
+ * query values for the same key, but REPEATED keys are preserved: star/unstar/scrobble
+ * carry many `id`/`albumId`/`artistId` and read them with getAll(), so we must not collapse
+ * them to one (the formPost extension sends these in the body). For each key we delete the
+ * query copy once, then append every body value. JSON array values expand to repeats too.
+ */
 async function mergeBody(request: Request, params: URLSearchParams): Promise<void> {
   if (request.method !== "POST") return;
   try {
     const ct = request.headers.get("content-type") ?? "";
-    const body = await request.text();
-    const parsed: [string, string][] = ct.includes("application/json")
-      ? Object.entries(JSON.parse(body) as Record<string, unknown>).map(
-          ([k, v]) => [k, String(v)] as [string, string]
+    const pairs: [string, string][] = ct.includes("application/json")
+      ? Object.entries(JSON.parse(await request.text()) as Record<string, unknown>).flatMap(
+          ([k, v]) =>
+            (Array.isArray(v) ? v : [v]).map((x) => [k, String(x)] as [string, string])
         )
-      : [...new URLSearchParams(body).entries()];
-    for (const [k, v] of parsed) params.set(k, v);
+      : [...new URLSearchParams(await request.text()).entries()];
+
+    const seen = new Set<string>();
+    for (const [k, v] of pairs) {
+      if (!seen.has(k)) {
+        params.delete(k); // drop any query-string copy once, then append body values
+        seen.add(k);
+      }
+      params.append(k, v);
+    }
   } catch {
     // Malformed body: ignore and auth on whatever query params we have.
   }
@@ -100,8 +146,10 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
   if (!auth.ok) {
     return respondError(params, env, 40, "Wrong username or password");
   }
-  // Expose the authenticated username to handlers (e.g. apiKey auth sets no `u`).
-  if (!params.get("u") && auth.username) params.set("u", auth.username);
+  // Always bind `u` to the AUTHENTICATED identity, overriding any client-supplied value.
+  // Token/legacy auth already derive auth.username from `u` (no-op here); apiKey auth does
+  // NOT, so without this override a caller could pass u=<another-user> and act on their data.
+  if (auth.username) params.set("u", auth.username);
 
   const handler = ROUTES[method];
   if (!handler) {
