@@ -348,12 +348,14 @@ export async function handleUpdatePlaylist(
 
 // ── deletePlaylist ───────────────────────────────────────────────────────────
 // Owner-only (error 50). Deleting the playlist cascades playlist_tracks via the FK.
+// The spec names the param `id`; we also accept `playlistId` as a fallback for lenient
+// clients that reuse the create/update param name.
 
 export async function handleDeletePlaylist(
   params: URLSearchParams,
   env: Env
 ): Promise<Response> {
-  const id = params.get("id");
+  const id = params.get("id") ?? params.get("playlistId");
   if (!id) return respondError(params, env, 10, "Missing parameter: id");
   const user = params.get("u") ?? "";
 

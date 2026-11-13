@@ -105,4 +105,13 @@ describe("deletePlaylist", () => {
     const r = await callJson("deletePlaylist", { id: created.playlist.id, ...ADMIN() });
     expect(r.error.code).toBe(50);
   });
+
+  it("accepts the id passed as `playlistId` (lenient-client fallback)", async () => {
+    const created = await callJson("createPlaylist", { name: "Temp", ...ALICE() });
+    const id = created.playlist.id;
+    const del = await callJson("deletePlaylist", { playlistId: id, ...ALICE() });
+    expect(del.status).toBe("ok");
+    const got = await callJson("getPlaylist", { id, ...ALICE() });
+    expect(got.error.code).toBe(70);
+  });
 });

@@ -74,20 +74,36 @@ describe("internet radio", () => {
 });
 
 describe("scan status", () => {
-  it("reports scanning=false and the track count when the worklist is idle", async () => {
+  // "Fully idle" = every enabled backend has a scan:done flag AND no worklist row is pending.
+  // The seeded backend has no scan:done until a cron pass completes, so we set it here.
+  const markBackendScanned = () =>
+    testEnv.DB.prepare(
+      "INSERT INTO meta (key, value) VALUES ('scan:done:garage-home','2026-01-01') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).run();
+
+  it("reports scanning=false and the track count when fully idle", async () => {
+    await markBackendScanned();
     const r = await callJson("getScanStatus", ALICE());
     expect(r.scanStatus.scanning).toBe(false);
     expect(r.scanStatus.count).toBe(1); // the one seeded track
   });
 
+  it("reports scanning=true when an enabled backend has no scan:done flag (scan pending)", async () => {
+    // Freshly seeded: garage-home is enabled and has never completed a pass.
+    const r = await callJson("getScanStatus", ALICE());
+    expect(r.scanStatus.scanning).toBe(true);
+  });
+
   it("reports scanning=true while a worklist row is pending", async () => {
+    // Mark the backend scanned so the needsScan branch is FALSE — this isolates the
+    // worklist-pending path, so the assertion is attributable solely to the pending row
+    // (otherwise a fresh backend's missing scan:done would make scanning=true regardless).
+    await markBackendScanned();
     await testEnv.DB.prepare(
       "INSERT INTO import_worklist (backend_id, key, status) VALUES ('garage-home','pending/x.flac','pending')"
     ).run();
     const r = await callJson("getScanStatus", ALICE());
     expect(r.scanStatus.scanning).toBe(true);
-    // Clean up so later assertions aren't affected.
-    await testEnv.DB.prepare("DELETE FROM import_worklist WHERE key = 'pending/x.flac'").run();
   });
 
   it("startScan is admin-only (error 50 for a non-admin)", async () => {
@@ -95,13 +111,31 @@ describe("scan status", () => {
     expect(r.error.code).toBe(50);
   });
 
-  it("startScan clears the per-backend completion flags and returns status", async () => {
-    await testEnv.DB.prepare(
-      "INSERT INTO meta (key, value) VALUES ('scan:done:garage-home','2026-01-01') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-    ).run();
+  it("startScan clears the completion flags AND mid-scan cursors, and returns status", async () => {
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        "INSERT INTO meta (key, value) VALUES ('scan:done:garage-home','2026-01-01') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+      ),
+      testEnv.DB.prepare(
+        "INSERT INTO meta (key, value) VALUES ('scan:cursor:garage-home','tok-abc') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+      ),
+    ]);
     const r = await callJson("startScan", ADMIN());
     expect(r.scanStatus).toBeDefined();
     const done = await testEnv.DB.prepare("SELECT value FROM meta WHERE key = 'scan:done:garage-home'").first();
     expect(done).toBeNull(); // cleared → cron re-enumerates next tick
+    const cursor = await testEnv.DB.prepare("SELECT value FROM meta WHERE key = 'scan:cursor:garage-home'").first();
+    expect(cursor).toBeNull(); // mid-scan cursor cleared → restart from the top, not resume
+  });
+
+  it("startScan makes an immediate getScanStatus report scanning=true", async () => {
+    // Backend already fully scanned → idle; startScan must flip it back to scanning.
+    await markBackendScanned();
+    const idle = await callJson("getScanStatus", ADMIN());
+    expect(idle.scanStatus.scanning).toBe(false);
+
+    await callJson("startScan", ADMIN());
+    const after = await callJson("getScanStatus", ALICE());
+    expect(after.scanStatus.scanning).toBe(true); // scan:done cleared → scan pending immediately
   });
 });

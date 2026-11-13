@@ -480,11 +480,18 @@ function albumListQuery(
       break;
     }
     case "byYear": {
-      const from = intParam(params.get("fromYear"), 0);
-      const to = intParam(params.get("toYear"), 0);
+      // Missing bounds are OPEN-ENDED, not 0 (BETWEEN 0 AND 0 would match only year=0).
+      // Sentinels well outside any plausible release year keep a single BETWEEN form.
+      const YEAR_MIN = -1000000;
+      const YEAR_MAX = 1000000;
+      const fromRaw = params.get("fromYear");
+      const toRaw = params.get("toYear");
+      const from = fromRaw !== null ? intParam(fromRaw, 0) : YEAR_MIN;
+      const to = toRaw !== null ? intParam(toRaw, 0) : YEAR_MAX;
       where = "WHERE al.year BETWEEN ? AND ?";
       binds.push(Math.min(from, to), Math.max(from, to));
-      // Subsonic: fromYear>toYear means descending (reverse chronological).
+      // Subsonic: fromYear>toYear means descending (reverse chronological). This only
+      // triggers when BOTH bounds are present; a missing bound keeps ascending order.
       order = from <= to ? "al.year" : "al.year DESC";
       break;
     }

@@ -111,6 +111,26 @@ describe("getAlbumList2 filters", () => {
     expect(got).not.toContain("Abbey Road"); // 1969, out of range
   });
 
+  it("byYear with only fromYear is open-ended upward", async () => {
+    const r = await callJson("getAlbumList2", { type: "byYear", fromYear: "1975", ...ALICE() });
+    const got = names(r);
+    expect(got).toContain("Animals"); // 1977
+    expect(got).toContain("Discovery"); // 2001
+    expect(got).not.toContain("Abbey Road"); // 1969, below the lower bound
+  });
+
+  it("byYear with only toYear is open-ended downward", async () => {
+    const r = await callJson("getAlbumList2", { type: "byYear", toYear: "1975", ...ALICE() });
+    const got = names(r);
+    expect(got).toEqual(["Abbey Road"]); // 1969 only; not a 0..0 collapse
+  });
+
+  it("byYear with neither bound returns all albums ordered by year", async () => {
+    const r = await callJson("getAlbumList2", { type: "byYear", ...ALICE() });
+    // Ordered ascending by year: 1969, 1977, 2001 — not an empty/year-0-only set.
+    expect(names(r)).toEqual(["Abbey Road", "Animals", "Discovery"]);
+  });
+
   it("byGenre returns only that genre", async () => {
     const r = await callJson("getAlbumList2", { type: "byGenre", genre: "Electronic", ...ALICE() });
     expect(names(r)).toEqual(["Discovery"]);
