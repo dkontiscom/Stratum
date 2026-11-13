@@ -4,12 +4,14 @@
 // byGenre, alphabeticalByName, size cap), getGenres aggregation, getSongsByGenre, and
 // getRandomSongs genre filtering.
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, callJson, ALICE, testEnv } from "./helpers";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { applySchema, freshLibrary, callJson, ALICE, testEnv } from "./helpers";
 
 beforeAll(async () => {
   await applySchema();
-  await seedLibrary(); // art1 "The Beatles" / alb1 "Abbey Road" (1969) / trk1 "Come Together"
+});
+beforeEach(async () => {
+  await freshLibrary(); // art1 "The Beatles" / alb1 "Abbey Road" (1969) / trk1 "Come Together"
   await testEnv.DB.batch([
     testEnv.DB.prepare("UPDATE albums SET genre = 'Rock' WHERE id = 'alb1'"),
     testEnv.DB.prepare("UPDATE tracks SET genre = 'Rock' WHERE id = 'trk1'"),

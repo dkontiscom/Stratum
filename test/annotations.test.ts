@@ -4,12 +4,14 @@
 // split (submission=true logs history + bumps play_count; submission=false touches only
 // now_playing). Each test performs its own writes so it is independent of storage reset.
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, call, callJson, ALICE, testEnv } from "./helpers";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { applySchema, freshLibrary, call, callJson, ALICE, testEnv } from "./helpers";
 
 beforeAll(async () => {
   await applySchema();
-  await seedLibrary();
+});
+beforeEach(async () => {
+  await freshLibrary();
 });
 
 describe("star / unstar", () => {

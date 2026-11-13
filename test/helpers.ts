@@ -82,6 +82,34 @@ export async function seedLibrary(db: D1Database = testEnv.DB): Promise<void> {
   ]);
 }
 
+/**
+ * Delete every row from every user table (schema is kept). The @cloudflare/vitest-plugin
+ * runtime isolates storage per FILE, not per test (unlike the old vitest-pool-workers),
+ * so tests must reset to a known baseline themselves. FKs are not enforced (no
+ * `PRAGMA foreign_keys = ON` in the schema), so delete order does not matter.
+ */
+export async function resetDb(db: D1Database = testEnv.DB): Promise<void> {
+  const { results } = await db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'"
+    )
+    .all<{ name: string }>();
+  if (results.length === 0) return;
+  // D1 (newer Miniflare) enforces foreign keys, so a bare delete of every table hits FK
+  // violations on parents still referenced by children. `defer_foreign_keys` within the
+  // batch's transaction postpones the checks to commit, by which point all tables are empty.
+  await db.batch([
+    db.prepare("PRAGMA defer_foreign_keys = TRUE"),
+    ...results.map((t) => db.prepare(`DELETE FROM "${t.name}"`)),
+  ]);
+}
+
+/** Reset to the standard seeded library — call in beforeEach so each test starts clean. */
+export async function freshLibrary(db: D1Database = testEnv.DB): Promise<void> {
+  await resetDb(db);
+  await seedLibrary(db);
+}
+
 /** Drive the router with a GET to /rest/<method> and the given query params. */
 export async function call(
   method: string,

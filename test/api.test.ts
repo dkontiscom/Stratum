@@ -3,12 +3,14 @@
 // the real schema, seed a tiny library + one user, and drive the router end-to-end to
 // cover the auth mechanisms, the response-format dispatch, and a browsing read.
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, call, callJson, tokenAuth, ALICE, ADMIN_PASSWORD, testEnv } from "./helpers";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { applySchema, freshLibrary, call, callJson, tokenAuth, ALICE, ADMIN_PASSWORD, testEnv } from "./helpers";
 
 beforeAll(async () => {
   await applySchema();
-  await seedLibrary();
+});
+beforeEach(async () => {
+  await freshLibrary();
 });
 
 describe("authentication", () => {

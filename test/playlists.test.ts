@@ -3,14 +3,16 @@
 // visibility) → delete, plus the owner-only authorization (error 50) and private-playlist
 // visibility rules (a non-owner gets error 70, which also hides existence).
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, call, callJson, ALICE, ADMIN_PASSWORD, testEnv } from "./helpers";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { applySchema, freshLibrary, call, callJson, ALICE, ADMIN_PASSWORD, testEnv } from "./helpers";
 
 const ADMIN = () => ({ u: "admin", p: ADMIN_PASSWORD });
 
 beforeAll(async () => {
   await applySchema();
-  await seedLibrary();
+});
+beforeEach(async () => {
+  await freshLibrary();
   // A second track so add/remove has something to move around.
   await testEnv.DB.prepare(
     `INSERT INTO tracks (id, title, album_id, album_name, artist_id, artist_name,

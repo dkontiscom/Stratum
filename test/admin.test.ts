@@ -4,12 +4,14 @@
 // importer's worklist + tracks; startScan is admin-only and clears the per-backend
 // completion flags so the next cron tick re-enumerates). Admin = the bootstrap admin.
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, call, callJson, ALICE, ADMIN, testEnv } from "./helpers";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { applySchema, freshLibrary, call, callJson, ALICE, ADMIN, testEnv } from "./helpers";
 
 beforeAll(async () => {
   await applySchema();
-  await seedLibrary();
+});
+beforeEach(async () => {
+  await freshLibrary();
 });
 
 describe("internet radio", () => {

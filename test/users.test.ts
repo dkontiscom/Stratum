@@ -5,13 +5,15 @@
 // last-admin guards), changePassword (self or admin, re-auth proves the new password),
 // getAvatar (plain 404). Admin calls use the bootstrap admin; alice is the seeded non-admin.
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, call, callJson, ALICE, ADMIN, tokenAuth, testEnv } from "./helpers";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { applySchema, freshLibrary, call, callJson, ALICE, ADMIN, tokenAuth, testEnv } from "./helpers";
 import { handleApiRequest } from "../src/server/router";
 
 beforeAll(async () => {
   await applySchema();
-  await seedLibrary();
+});
+beforeEach(async () => {
+  await freshLibrary();
 });
 
 describe("getUser", () => {

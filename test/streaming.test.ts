@@ -4,12 +4,14 @@
 // SigV4 signature), the error paths (missing/unknown id), cover-art resolution (album
 // presign, artist external URL, none), and graceful failure when a backend lacks creds.
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, call, callJson, ALICE, testEnv } from "./helpers";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { applySchema, freshLibrary, call, callJson, ALICE, testEnv } from "./helpers";
 
 beforeAll(async () => {
   await applySchema();
-  await seedLibrary();
+});
+beforeEach(async () => {
+  await freshLibrary();
   // A second backend with no endpoint/secret_ref (an R2-binding placeholder, not wired in
   // v1) plus a track whose only file lives there — to exercise the graceful-failure path.
   await testEnv.DB.batch([
