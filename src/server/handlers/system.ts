@@ -3,7 +3,8 @@
 // All take the uniform handler signature (params, env) => Promise<Response> so the
 // router can register later slices' handlers the same way.
 import type { Env } from "../../shared";
-import { respond, jsonResponse } from "../respond";
+import { respond, esc } from "../respond";
+import { respondDual } from "../serialize";
 
 /** ping — liveness check; empty successful envelope. */
 export async function handlePing(params: URLSearchParams, env: Env): Promise<Response> {
@@ -27,22 +28,29 @@ export async function handleGetLicense(params: URLSearchParams, env: Env): Promi
 
 /**
  * getOpenSubsonicExtensions — advertise supported OpenSubsonic extensions.
- * Ported as-is from the old server, which always answers JSON regardless of `f`
- * (this endpoint is an OpenSubsonic/JSON concern).
+ * Respects `f`: real OpenSubsonic clients send f=json and get the JSON shape;
+ * f=xml (or no `f`) gets the equivalent XML form.
  */
 export async function handleGetOpenSubsonicExtensions(
-  _params: URLSearchParams,
+  params: URLSearchParams,
   env: Env
 ): Promise<Response> {
-  return jsonResponse(env, {
-    openSubsonicExtensions: [
-      { name: "formPost", versions: [1] },
-      { name: "songLyrics", versions: [1] },
-      { name: "apiKeyAuthentication", versions: [1] },
-      { name: "transcodeOffset", versions: [1] },
-      { name: "playbackReport", versions: [1] },
-      { name: "songSimilarity", versions: [1] },
-      { name: "indexBasedQueue", versions: [1] },
-    ],
-  });
+  const extensions = [
+    { name: "formPost", versions: [1] },
+    { name: "songLyrics", versions: [1] },
+    { name: "apiKeyAuthentication", versions: [1] },
+    { name: "transcodeOffset", versions: [1] },
+    { name: "playbackReport", versions: [1] },
+    { name: "songSimilarity", versions: [1] },
+    { name: "indexBasedQueue", versions: [1] },
+  ];
+  const xml = extensions
+    .map(
+      (ext) =>
+        `<openSubsonicExtensions name="${esc(ext.name)}">${ext.versions
+          .map((v) => `<versions>${v}</versions>`)
+          .join("")}</openSubsonicExtensions>`
+    )
+    .join("");
+  return respondDual(params, env, xml, { openSubsonicExtensions: extensions });
 }

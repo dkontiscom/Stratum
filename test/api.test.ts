@@ -92,6 +92,14 @@ describe("response format + handshake", () => {
     expect(names).toContain("apiKeyAuthentication");
   });
 
+  it("getOpenSubsonicExtensions honours f=xml (default)", async () => {
+    const res = await call("getOpenSubsonicExtensions", ALICE());
+    expect(res.headers.get("content-type")).toContain("xml");
+    const text = await res.text();
+    expect(text).toContain('name="formPost"');
+    expect(text).toContain("<openSubsonicExtensions");
+  });
+
   it("returns error 0 for an unknown method (authed)", async () => {
     const r = await callJson("noSuchMethod", ALICE());
     expect(r.status).toBe("failed");

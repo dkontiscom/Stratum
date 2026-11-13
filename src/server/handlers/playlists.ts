@@ -68,7 +68,7 @@ function playlistTrackInserts(
  * Filter `ids` to those that exist in `tracks` (preserving order AND duplicates), and
  * sum their durations. This keeps playlist positions contiguous over REAL tracks, avoids
  * FK violations on a bogus songId, and gives an accurate song_count/duration for the row.
- * One bound IN(...) query — placeholders are `?`, values are bound.
+ * Chunked bound IN(...) queries (SQLite's 999-variable ceiling) — placeholders are `?`, values are bound.
  */
 async function validTracks(
   env: Env,
