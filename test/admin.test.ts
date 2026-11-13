@@ -58,6 +58,11 @@ describe("internet radio", () => {
     expect(list.internetRadioStations.internetRadioStation ?? []).toHaveLength(0);
   });
 
+  it("404s an admin update of a nonexistent station (error 70)", async () => {
+    const r = await callJson("updateInternetRadioStation", { id: "no-such-station", name: "x", ...ADMIN() });
+    expect(r.error.code).toBe(70);
+  });
+
   it("refuses a non-admin update/delete (error 50)", async () => {
     const upd = await callJson("updateInternetRadioStation", { id: "whatever", name: "x", ...ALICE() });
     expect(upd.error.code).toBe(50);

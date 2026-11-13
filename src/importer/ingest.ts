@@ -12,6 +12,7 @@ import { getRange, type S3Config } from "../shared/s3";
 import { extOf, ext2mime } from "../shared/media";
 import { artistId, albumId, trackId, trackFileId } from "../shared/ids";
 import { parseTags, HEADER_BYTES } from "./parsers";
+import { setMeta } from "./scan";
 
 interface PendingRow {
   backend_id: string;
@@ -176,6 +177,12 @@ export async function runIngest(env: Env, limit: number): Promise<{ processed: n
     } catch (err) {
       await markError(env, row, err instanceof Error ? err.message : String(err));
     }
+  }
+  // Ingest is the only stage that changes the browsable library, so bump the real
+  // last-modified timestamp (epoch ms) when any file was actually processed. getIndexes
+  // reads this so clients can cache-hit the index until the library truly changes.
+  if (processed > 0) {
+    await setMeta(env, "library:lastModified", String(Date.now()));
   }
   return { processed, requests };
 }

@@ -92,6 +92,13 @@ export async function handleUpdateInternetRadioStation(
   const id = params.get("id");
   if (!id) return respondError(params, env, 10, "Missing parameter: id");
 
+  // The target must exist (error 70). Placed after the admin gate (50) and missing-param (10)
+  // so the "non-admin update" test still sees 50 and existence isn't leaked to unauthorized callers.
+  const exists = await env.DB.prepare("SELECT 1 AS x FROM internet_radio_stations WHERE id = ?")
+    .bind(id)
+    .first();
+  if (!exists) return respondError(params, env, 70, "Internet radio station not found");
+
   const sets: string[] = [];
   const binds: unknown[] = [];
   const name = params.get("name");

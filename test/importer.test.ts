@@ -275,6 +275,12 @@ describe("runIngest", () => {
 
     const pending = await worklist("b-ingest");
     expect(pending.results.every((r) => r.status === "done")).toBe(true);
+
+    // Ingest bumped the real library last-modified (epoch ms) because files were processed.
+    const lastMod = await testEnv.DB.prepare(
+      "SELECT value FROM meta WHERE key = 'library:lastModified'"
+    ).first<{ value: string }>();
+    expect(Number(lastMod?.value)).toBeGreaterThan(0);
   });
 
   it("marks a row 'error' (not done) when the range GET fails", async () => {

@@ -4,7 +4,7 @@
 // cover the auth mechanisms, the response-format dispatch, and a browsing read.
 
 import { describe, it, expect, beforeAll } from "vitest";
-import { applySchema, seedLibrary, call, callJson, tokenAuth, ALICE, ADMIN_PASSWORD } from "./helpers";
+import { applySchema, seedLibrary, call, callJson, tokenAuth, ALICE, ADMIN_PASSWORD, testEnv } from "./helpers";
 
 beforeAll(async () => {
   await applySchema();
@@ -119,6 +119,16 @@ describe("browsing (seeded library)", () => {
     expect(bucketB).toBeDefined();
     const beatles = bucketB.artist.find((a: { name: string }) => a.name === "The Beatles");
     expect(beatles).toMatchObject({ id: "art1", albumCount: 1, coverArt: "art1" });
+  });
+
+  it("getIndexes emits the stored library:lastModified (not Date.now())", async () => {
+    // Self-contained: seed a fixed last-modified; the handler must echo it verbatim, proving
+    // the value is read from meta rather than regenerated per call. (Rolled back after this it.)
+    await testEnv.DB.prepare(
+      "INSERT INTO meta (key, value) VALUES ('library:lastModified', '1730000000000')"
+    ).run();
+    const r = await callJson("getIndexes", ALICE());
+    expect(r.indexes.lastModified).toBe(1730000000000);
   });
 
   it("getMusicDirectory lists an artist's albums with songCount", async () => {

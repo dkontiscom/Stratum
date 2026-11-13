@@ -92,6 +92,16 @@ describe("createUser / updateUser / changePassword", () => {
     expect((await callJson("ping", tokenAuth("erin", "old-pw"))).status).toBe("failed");
   });
 
+  it("404s updateUser on a nonexistent username (error 70)", async () => {
+    const r = await callJson("updateUser", { username: "nobody-here", email: "x@y", ...ADMIN() });
+    expect(r.error.code).toBe(70);
+  });
+
+  it("404s changePassword on a nonexistent username (error 70)", async () => {
+    const r = await callJson("changePassword", { username: "nobody-here", password: "x", ...ADMIN() });
+    expect(r.error.code).toBe(70);
+  });
+
   it("forbids a non-admin changing another user's password (error 50)", async () => {
     // alice (seeded non-admin) may not change anyone else's password; the 50 is returned
     // before any lookup of the target, so the target need not exist.

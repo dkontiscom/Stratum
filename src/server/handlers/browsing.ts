@@ -127,7 +127,12 @@ function indexJson(byLetter: Map<string, ArtistListItem[]>): object[] {
 export async function handleGetIndexes(params: URLSearchParams, env: Env): Promise<Response> {
   const user = params.get("u") ?? "";
   const byLetter = await loadArtistIndex(env, user);
-  const lastModified = Date.now();
+  // Real last-modified: the importer bumps meta 'library:lastModified' (epoch ms) when an
+  // ingest actually changes the library, so clients can cache-hit the index between changes.
+  const row = await env.DB.prepare(
+    "SELECT value FROM meta WHERE key = 'library:lastModified'"
+  ).first<{ value: string }>();
+  const lastModified = row ? parseInt(row.value, 10) : 0;
   return respondDual(
     params,
     env,

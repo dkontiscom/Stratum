@@ -188,6 +188,13 @@ export async function handleUpdateUser(params: URLSearchParams, env: Env): Promi
   const username = params.get("username");
   if (!username) return respondError(params, env, 10, "Missing parameter: username");
 
+  // The target must exist (error 70). Placed after the admin gate (50) and missing-param (10)
+  // so neither authorization nor existence is leaked out of order.
+  const exists = await env.DB.prepare("SELECT 1 AS x FROM users WHERE username = ?")
+    .bind(username)
+    .first();
+  if (!exists) return respondError(params, env, 70, "User not found");
+
   // Last-admin guard (mirrors handleDeleteUser): if this update would DEMOTE an admin —
   // adminRole present and resolving to non-admin — refuse when it would leave the server
   // with no admin and no configured bootstrap admin (a lockout). Only blocks a real demotion.
@@ -287,6 +294,13 @@ export async function handleChangePassword(
   if (username !== authUser && !(await isAdmin(env, authUser))) {
     return notAuthorized(params, env);
   }
+
+  // The target must exist (error 70). A non-admin targeting another user was already blocked
+  // with 50 above, and a self-change targets the authed user (who exists), so this never leaks.
+  const exists = await env.DB.prepare("SELECT 1 AS x FROM users WHERE username = ?")
+    .bind(username)
+    .first();
+  if (!exists) return respondError(params, env, 70, "User not found");
 
   await env.DB.prepare("UPDATE users SET password = ? WHERE username = ?")
     .bind(password, username)
