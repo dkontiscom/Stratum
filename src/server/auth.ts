@@ -16,9 +16,20 @@ export interface AuthResult {
   ok: boolean;
   username: string;
   isAdmin: boolean;
+  /** On failure, the Subsonic error code: 10 = missing required param, 40 = wrong credential. */
+  errorCode?: number;
 }
 
-const FAIL: AuthResult = { ok: false, username: "", isAdmin: false };
+/** Subsonic error codes used by auth. */
+const MISSING = 10; // Required parameter is missing.
+const WRONG = 40; // Wrong username or password.
+
+const fail = (errorCode: number): AuthResult => ({
+  ok: false,
+  username: "",
+  isAdmin: false,
+  errorCode,
+});
 
 /** Subset of the users row auth needs. */
 interface AuthUserRow {
@@ -50,11 +61,13 @@ export async function checkAuth(params: URLSearchParams, env: Env): Promise<Auth
       .bind(apiKey)
       .first<{ username: string; is_admin: number }>();
     if (user) return { ok: true, username: user.username, isAdmin: !!user.is_admin };
-    return FAIL;
+    // apiKey supplied but not matched → wrong credential.
+    return fail(WRONG);
   }
 
   const u = params.get("u");
-  if (!u) return FAIL;
+  // No apiKey and no username at all → the required credential param is missing.
+  if (!u) return fail(MISSING);
 
   // Look up the stored plaintext password. Fall back to the bootstrap admin secret
   // when the user isn't in the DB yet.
@@ -67,7 +80,8 @@ export async function checkAuth(params: URLSearchParams, env: Env): Promise<Auth
   const bootstrapAdmin =
     !user && u === env.ADMIN_USERNAME && typeof env.ADMIN_PASSWORD === "string";
   const storedPass = user?.password ?? (bootstrapAdmin ? env.ADMIN_PASSWORD! : null);
-  if (!storedPass) return FAIL;
+  // Unknown user (and not the bootstrap admin) → wrong username.
+  if (!storedPass) return fail(WRONG);
 
   const isAdmin = user ? !!user.is_admin : bootstrapAdmin;
 
@@ -75,15 +89,18 @@ export async function checkAuth(params: URLSearchParams, env: Env): Promise<Auth
   const t = params.get("t");
   const s = params.get("s");
   if (t && s) {
-    return { ok: t === md5(storedPass + s), username: u, isAdmin };
+    if (t === md5(storedPass + s)) return { ok: true, username: u, isAdmin };
+    return fail(WRONG);
   }
 
   // (c) legacy password: plaintext or enc:<hex>.
   const p = params.get("p");
   if (p) {
     const pass = p.startsWith("enc:") ? hexDecode(p.slice(4)) : p;
-    return { ok: pass === storedPass, username: u, isAdmin };
+    if (pass === storedPass) return { ok: true, username: u, isAdmin };
+    return fail(WRONG);
   }
 
-  return FAIL;
+  // A valid user exists but no auth token/password param was supplied → missing param.
+  return fail(MISSING);
 }

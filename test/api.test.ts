@@ -12,10 +12,16 @@ beforeAll(async () => {
 });
 
 describe("authentication", () => {
-  it("rejects a request with no credentials (error 40)", async () => {
+  it("rejects a request with no credentials (error 10, missing param)", async () => {
     const r = await callJson("ping");
     expect(r.status).toBe("failed");
-    expect(r.error.code).toBe(40);
+    expect(r.error.code).toBe(10);
+  });
+
+  it("rejects a username with no password or token (error 10, missing param)", async () => {
+    const r = await callJson("ping", { u: "alice" });
+    expect(r.status).toBe("failed");
+    expect(r.error.code).toBe(10);
   });
 
   it("rejects a wrong password", async () => {
@@ -105,6 +111,15 @@ describe("browsing (seeded library)", () => {
     expect(bucketB).toBeDefined();
     const beatles = bucketB.artist.find((a: { name: string }) => a.name === "The Beatles");
     expect(beatles).toMatchObject({ id: "art1", albumCount: 1, coverArt: "art1" });
+  });
+
+  it("getMusicDirectory lists an artist's albums with songCount", async () => {
+    const r = await callJson("getMusicDirectory", { id: "art1", ...ALICE() });
+    expect(r.directory.child[0]).toMatchObject({
+      id: "alb1",
+      isDir: true,
+      songCount: 1,
+    });
   });
 
   it("getArtist lists the artist's albums", async () => {

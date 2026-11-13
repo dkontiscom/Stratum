@@ -177,7 +177,7 @@ export async function handleGetMusicDirectory(
     const childXml = albums.results
       .map(
         (a) =>
-          `<child id="${esc(a.id)}" parent="${esc(id)}" title="${esc(a.name)}" isDir="true" album="${esc(a.name)}" artist="${esc(artist.name)}"${a.year != null ? ` year="${a.year}"` : ""} coverArt="${esc(a.id)}"/>`
+          `<child id="${esc(a.id)}" parent="${esc(id)}" title="${esc(a.name)}" isDir="true" album="${esc(a.name)}" artist="${esc(artist.name)}"${a.year != null ? ` year="${a.year}"` : ""} songCount="${a.song_count}" coverArt="${esc(a.id)}"/>`
       )
       .join("");
     const childJson = albums.results.map((a) => ({
@@ -188,6 +188,7 @@ export async function handleGetMusicDirectory(
       album: a.name,
       artist: artist.name,
       ...(a.year != null ? { year: a.year } : {}),
+      songCount: a.song_count,
       coverArt: a.id,
     }));
     return respondDual(

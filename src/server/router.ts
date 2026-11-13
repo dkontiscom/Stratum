@@ -202,7 +202,9 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
 
   const auth = await checkAuth(params, env);
   if (!auth.ok) {
-    return respondError(params, env, 40, "Wrong username or password");
+    return auth.errorCode === 10
+      ? respondError(params, env, 10, "Required parameter is missing")
+      : respondError(params, env, 40, "Wrong username or password");
   }
   // Always bind `u` to the AUTHENTICATED identity, overriding any client-supplied value.
   // Token/legacy auth already derive auth.username from `u` (no-op here); apiKey auth does
