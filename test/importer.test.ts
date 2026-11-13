@@ -15,6 +15,7 @@ import { applySchema, testEnv } from "./helpers";
 import { runScan } from "../src/importer/scan";
 import { runIngest } from "../src/importer/ingest";
 import { runImportBatch } from "../src/importer/index";
+import { HEADER_BYTES } from "../src/importer/parsers";
 
 // ── FLAC fixture builder (STREAMINFO + VORBIS_COMMENT) ───────────────────────
 
@@ -66,12 +67,20 @@ function listXml(entries: [string, number][], nextToken?: string): string {
 
 /**
  * Install a fake-S3 fetch. `pages` is the sequence of ListObjectsV2 pages (keys + optional
- * next token); range GETs are served from `files` (null => 404). Returns a request counter.
+ * next token); range GETs are served from `files` (null => 404). A range GET must be a GET
+ * carrying a `bytes=start-end` Range header — the stub returns only that slice with a
+ * matching 206 Content-Range/Content-Length, and rejects a missing range with 400, so a
+ * regression that dropped or mangled the range is caught (not silently served the whole
+ * object). `calls()` counts requests; `ranges()` records each Range header seen.
  */
-function installFakeS3(files: FileMap, pages: { keys: string[]; nextToken?: string }[]): { calls: () => number } {
+function installFakeS3(
+  files: FileMap,
+  pages: { keys: string[]; nextToken?: string }[]
+): { calls: () => number; ranges: () => string[] } {
   let calls = 0;
+  const ranges: string[] = [];
   const sizeOf = (k: string) => (files[k] ? files[k]!.byteLength : 1234);
-  const fake = async (input: RequestInfo | URL): Promise<Response> => {
+  const fake = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     calls++;
     const url = new URL(typeof input === "string" ? input : input.toString());
     if (url.searchParams.get("list-type") === "2") {
@@ -88,10 +97,27 @@ function installFakeS3(files: FileMap, pages: { keys: string[]; nextToken?: stri
     const key = segs.slice(1).map(decodeURIComponent).join("/");
     const bytes = files[key];
     if (!bytes) return new Response("NoSuchKey", { status: 404 });
-    return new Response(bytes, { status: 206 });
+
+    const method = (init?.method ?? "GET").toUpperCase();
+    const rangeHeader = new Headers(init?.headers as HeadersInit | undefined).get("range");
+    if (method !== "GET" || !rangeHeader) {
+      return new Response("Range required", { status: 400 });
+    }
+    ranges.push(rangeHeader);
+    const m = /^bytes=(\d+)-(\d+)$/.exec(rangeHeader);
+    const start = m ? parseInt(m[1], 10) : 0;
+    const end = Math.min(m ? parseInt(m[2], 10) : bytes.byteLength - 1, bytes.byteLength - 1);
+    const slice = bytes.subarray(start, end + 1);
+    return new Response(slice, {
+      status: 206,
+      headers: {
+        "Content-Range": `bytes ${start}-${end}/${bytes.byteLength}`,
+        "Content-Length": String(slice.byteLength),
+      },
+    });
   };
   vi.stubGlobal("fetch", vi.fn(fake));
-  return { calls: () => calls };
+  return { calls: () => calls, ranges: () => ranges };
 }
 
 /** Insert a presignable backend (shares the GARAGE_HOME creds already in testEnv). */
@@ -198,7 +224,7 @@ describe("runIngest", () => {
       "TRACKNUMBER=1",
       "DATE=1969",
     ]);
-    installFakeS3(
+    const s3 = installFakeS3(
       {
         "The Beatles/Abbey Road/01 Come Together.flac": flac,
         "Pink Floyd/Animals/02 Dogs.mp3": new Uint8Array(32), // unparseable → filename fallback
@@ -210,6 +236,8 @@ describe("runIngest", () => {
     const { processed, requests } = await runIngest(testEnv, 10);
     expect(processed).toBe(2);
     expect(requests).toBe(2); // one range GET per file
+    // The importer asks for exactly the leading HEADER_BYTES of each object.
+    expect(s3.ranges()).toEqual([`bytes=0-${HEADER_BYTES - 1}`, `bytes=0-${HEADER_BYTES - 1}`]);
 
     // FLAC: tags win.
     const flacTrack = await testEnv.DB.prepare(
