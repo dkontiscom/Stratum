@@ -48,6 +48,11 @@ function indexLetter(name: string): string {
 
 // ── getMusicFolders ──────────────────────────────────────────────────────────
 // Single logical folder (the library is flat to the API; backends are internal).
+// NOTE: musicFolder.id MUST be a JSON number — the Subsonic spec types it as xs:int and
+// strict clients (e.g. Arpeggi, Swift Codable `id: Int`) reject a string with a decode
+// error, which aborts their library sync before the artist index is ever built. The XML
+// attribute is a bare "1" either way. (Found via live Arpeggi testing.)
+const MUSIC_FOLDER_ID = 1;
 
 export async function handleGetMusicFolders(
   params: URLSearchParams,
@@ -56,8 +61,8 @@ export async function handleGetMusicFolders(
   return respondDual(
     params,
     env,
-    `<musicFolders><musicFolder id="1" name="Music"/></musicFolders>`,
-    { musicFolders: { musicFolder: [{ id: "1", name: "Music" }] } }
+    `<musicFolders><musicFolder id="${MUSIC_FOLDER_ID}" name="Music"/></musicFolders>`,
+    { musicFolders: { musicFolder: [{ id: MUSIC_FOLDER_ID, name: "Music" }] } }
   );
 }
 

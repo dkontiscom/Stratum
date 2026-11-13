@@ -110,7 +110,9 @@ describe("response format + handshake", () => {
 describe("browsing (seeded library)", () => {
   it("getMusicFolders returns the single logical folder", async () => {
     const r = await callJson("getMusicFolders", ALICE());
-    expect(r.musicFolders.musicFolder[0]).toMatchObject({ id: "1", name: "Music" });
+    // id MUST be a JSON number (Subsonic xs:int); a string breaks strict Swift clients.
+    expect(r.musicFolders.musicFolder[0]).toMatchObject({ id: 1, name: "Music" });
+    expect(typeof r.musicFolders.musicFolder[0].id).toBe("number");
   });
 
   it("getArtists buckets 'The Beatles' under 'B' with a real album count", async () => {
