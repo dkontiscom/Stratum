@@ -38,8 +38,17 @@ function amzDates(now = new Date()): { date: string; time: string } {
   return { date: time.slice(0, 8), time };
 }
 
+// RFC 3986 encoding for the canonical URI. encodeURIComponent leaves !'()* unescaped, but
+// SigV4 (and S3/R2 server-side canonicalization) require them percent-encoded, or the signature
+// mismatches on keys containing those characters (e.g. an apostrophe) → 403. Encode per segment
+// so the '/' path separators are preserved.
 function encodeKey(key: string): string {
-  return key.split("/").map(encodeURIComponent).join("/");
+  return key
+    .split("/")
+    .map((seg) =>
+      encodeURIComponent(seg).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase())
+    )
+    .join("/");
 }
 
 async function signingKey(cfg: S3Config, date: string): Promise<ArrayBuffer> {
