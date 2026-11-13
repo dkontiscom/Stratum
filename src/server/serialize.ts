@@ -69,21 +69,34 @@ export function respondDual(
 
 // ── Artist ───────────────────────────────────────────────────────────────────
 
+/**
+ * OpenSubsonic ArtistID3 `roles`. Some clients (notably Arpeggi) build their Artists list
+ * from this field — an artist that has albums is an "albumartist" — and show an EMPTY artist
+ * list when it is missing. The spec also says a supported field must always be returned.
+ */
+export function artistRoles(albumCount: number): string[] {
+  return albumCount > 0 ? ["artist", "albumartist"] : ["artist"];
+}
+
 export function artistJson(a: ArtistListItem): Record<string, unknown> {
   const o: Record<string, unknown> = {
     id: a.id,
     name: a.name,
     albumCount: a.album_count,
     coverArt: a.id,
+    roles: artistRoles(a.album_count),
   };
   if (a.starred_at) o.starred = a.starred_at;
   return o;
 }
 
-/** Self-closing `<artist …/>` (or another tag, e.g. inside an index). */
+/** `<artist …>` carrying OpenSubsonic `<role>` children (or another tag, e.g. inside an index). */
 export function artistXml(a: ArtistListItem, tag = "artist"): string {
   const starred = a.starred_at ? ` starred="${esc(a.starred_at)}"` : "";
-  return `<${tag} id="${esc(a.id)}" name="${esc(a.name)}" albumCount="${a.album_count}" coverArt="${esc(a.id)}"${starred}/>`;
+  const roles = artistRoles(a.album_count)
+    .map((r) => `<role>${r}</role>`)
+    .join("");
+  return `<${tag} id="${esc(a.id)}" name="${esc(a.name)}" albumCount="${a.album_count}" coverArt="${esc(a.id)}"${starred}>${roles}</${tag}>`;
 }
 
 // ── Album (albumList / album child shape) ────────────────────────────────────

@@ -123,6 +123,9 @@ describe("browsing (seeded library)", () => {
     expect(bucketB).toBeDefined();
     const beatles = bucketB.artist.find((a: { name: string }) => a.name === "The Beatles");
     expect(beatles).toMatchObject({ id: "art1", albumCount: 1, coverArt: "art1" });
+    // OpenSubsonic `roles`: clients like Arpeggi build their Artists list from this; an
+    // artist with albums must advertise "albumartist" or the list comes back empty.
+    expect(beatles.roles).toEqual(["artist", "albumartist"]);
   });
 
   it("getIndexes emits the stored library:lastModified (not Date.now())", async () => {

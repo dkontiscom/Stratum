@@ -17,6 +17,7 @@ import {
   albumXml,
   annOf,
   artistJson,
+  artistRoles,
   artistXml,
   intParam,
   respondDual,
@@ -267,12 +268,15 @@ export async function handleGetArtist(params: URLSearchParams, env: Env): Promis
 
   const albumCount = albums.results.length;
   const starred = artist._starred ? ` starred="${esc(artist._starred)}"` : "";
+  const roles = artistRoles(albumCount);
+  const rolesXml = roles.map((r) => `<role>${r}</role>`).join("");
   const albumsXml = albums.results.map((a) => albumXml(a, annOf(a))).join("");
   const artistJsonObj: Record<string, unknown> = {
     id: artist.id,
     name: artist.name,
     albumCount,
     coverArt: artist.id,
+    roles,
     album: albums.results.map((a) => albumJson(a, annOf(a))),
   };
   if (artist._starred) artistJsonObj.starred = artist._starred;
@@ -280,7 +284,7 @@ export async function handleGetArtist(params: URLSearchParams, env: Env): Promis
   return respondDual(
     params,
     env,
-    `<artist id="${esc(artist.id)}" name="${esc(artist.name)}" albumCount="${albumCount}" coverArt="${esc(artist.id)}"${starred}>${albumsXml}</artist>`,
+    `<artist id="${esc(artist.id)}" name="${esc(artist.name)}" albumCount="${albumCount}" coverArt="${esc(artist.id)}"${starred}>${rolesXml}${albumsXml}</artist>`,
     { artist: artistJsonObj }
   );
 }
