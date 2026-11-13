@@ -43,11 +43,15 @@ function vorbisComment(vendor: string, entries: string[]): Uint8Array {
 function flacBytes(comments: string[], sampleRate = 44100, totalSamples = 44100 * 200): Uint8Array {
   const parts: number[] = [0x66, 0x4c, 0x61, 0x43]; // "fLaC"
   const si = new Uint8Array(34);
+  // Spec layout from byte 10: 20b sample rate | 3b (channels-1) | 5b (bps-1) | 36b total samples.
+  const ch = (2 - 1) & 0x07; // 2 channels
+  const bpsv = (16 - 1) & 0x1f; // 16-bit
   si[10] = (sampleRate >> 12) & 0xff;
   si[11] = (sampleRate >> 4) & 0xff;
-  si[12] = ((sampleRate & 0x0f) << 4) | (Math.floor(totalSamples / 2 ** 32) & 0x0f);
+  si[12] = ((sampleRate & 0x0f) << 4) | (ch << 1) | ((bpsv >> 4) & 0x01);
+  si[13] = ((bpsv & 0x0f) << 4) | (Math.floor(totalSamples / 2 ** 32) & 0x0f);
   const lo = totalSamples >>> 0;
-  si[13] = (lo >>> 24) & 0xff; si[14] = (lo >>> 16) & 0xff; si[15] = (lo >>> 8) & 0xff; si[16] = lo & 0xff;
+  si[14] = (lo >>> 24) & 0xff; si[15] = (lo >>> 16) & 0xff; si[16] = (lo >>> 8) & 0xff; si[17] = lo & 0xff;
   pushBlock(parts, 0, si, false);
   pushBlock(parts, 4, vorbisComment("ref", comments), true);
   return new Uint8Array(parts);

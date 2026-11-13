@@ -15,10 +15,13 @@ function u24(b: Uint8Array, o: number): number {
 
 /** Parse STREAMINFO (34 bytes) → { sampleRate, totalSamples }. */
 function readStreamInfo(si: Uint8Array): { sampleRate: number; totalSamples: number } {
-  // bytes 10..17 pack: 20b sample rate | 3b channels | 5b bps | 36b total samples
+  // Bytes 10..17 pack, MSB-first: 20b sample rate | 3b channels | 5b bps | 36b total samples.
+  //   sample rate  = byte 10, byte 11, and the HIGH nibble of byte 12 (20 bits)
+  //   channels+bps = LOW nibble of byte 12 + HIGH nibble of byte 13 (8 bits) — skipped
+  //   total samples= LOW nibble of byte 13 + bytes 14..17 (36 bits)
   const sampleRate = (si[10] << 12) | (si[11] << 4) | (si[12] >> 4);
-  const hi = si[12] & 0x0f; // top 4 bits of the 36-bit sample count
-  const lo = si[13] * 2 ** 24 + (si[14] << 16) + (si[15] << 8) + si[16];
+  const hi = si[13] & 0x0f; // top 4 bits of the 36-bit sample count
+  const lo = si[14] * 2 ** 24 + (si[15] << 16) + (si[16] << 8) + si[17];
   const totalSamples = hi * 2 ** 32 + lo;
   return { sampleRate, totalSamples };
 }

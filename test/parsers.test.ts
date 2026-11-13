@@ -10,19 +10,27 @@ import { parseTags, isParsable } from "../src/importer/parsers";
 
 // ── FLAC builders ─────────────────────────────────────────────────────────────
 
-/** Build a STREAMINFO (type 0) 34-byte data block for the given rate + total samples. */
-function streamInfo(sampleRate: number, totalSamples: number): Uint8Array {
+/** Build a STREAMINFO (type 0) 34-byte data block for the given rate + total samples.
+ * Spec-accurate bit packing (MSB-first from byte 10):
+ *   20b sample rate | 3b (channels-1) | 5b (bps-1) | 36b total samples.
+ * channels/bps default to real values (2ch / 16-bit) so the 8 bits between the sample
+ * rate and the sample count are non-zero — the parser must skip exactly those. */
+function streamInfo(sampleRate: number, totalSamples: number, channels = 2, bps = 16): Uint8Array {
   const b = new Uint8Array(34);
-  // bytes 10..12: 20-bit sample rate; byte 12 low nibble + 13..16: 36-bit total samples
+  const ch = (channels - 1) & 0x07; // 3 bits
+  const bpsv = (bps - 1) & 0x1f; // 5 bits
   b[10] = (sampleRate >> 12) & 0xff;
   b[11] = (sampleRate >> 4) & 0xff;
-  const hi4 = Math.floor(totalSamples / 2 ** 32) & 0x0f; // top 4 bits of 36-bit count
-  b[12] = ((sampleRate & 0x0f) << 4) | hi4;
+  // byte 12: high nibble = low 4 bits of sample rate; low nibble = 3b channels + top bit of bps
+  b[12] = ((sampleRate & 0x0f) << 4) | (ch << 1) | ((bpsv >> 4) & 0x01);
+  // byte 13: high nibble = low 4 bits of bps; low nibble = top 4 bits of 36-bit total samples
+  const hi4 = Math.floor(totalSamples / 2 ** 32) & 0x0f;
+  b[13] = ((bpsv & 0x0f) << 4) | hi4;
   const lo = totalSamples >>> 0;
-  b[13] = (lo >>> 24) & 0xff;
-  b[14] = (lo >>> 16) & 0xff;
-  b[15] = (lo >>> 8) & 0xff;
-  b[16] = lo & 0xff;
+  b[14] = (lo >>> 24) & 0xff;
+  b[15] = (lo >>> 16) & 0xff;
+  b[16] = (lo >>> 8) & 0xff;
+  b[17] = lo & 0xff;
   return b;
 }
 
