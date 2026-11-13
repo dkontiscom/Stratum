@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { applySchema, seedLibrary, call, callJson, ALICE, ADMIN, tokenAuth, testEnv } from "./helpers";
+import { handleApiRequest } from "../src/server/router";
 
 beforeAll(async () => {
   await applySchema();
@@ -96,6 +97,54 @@ describe("createUser / updateUser / changePassword", () => {
     // before any lookup of the target, so the target need not exist.
     const r = await callJson("changePassword", { username: "someone-else", password: "hijack", ...ALICE() });
     expect(r.error.code).toBe(50);
+  });
+});
+
+describe("updateUser last-admin guard", () => {
+  it("allows demoting the last DB admin when a bootstrap admin is configured", async () => {
+    // Only DB admin; bootstrap "admin" IS configured in testEnv, so the server stays administrable.
+    await testEnv.DB.prepare(
+      "INSERT INTO users (id, username, password, is_admin) VALUES ('ua','solo','pw',1)"
+    ).run();
+    const r = await call("updateUser", { username: "solo", adminRole: "false", ...ADMIN() });
+    expect(r.status).toBe(200);
+    const row = await testEnv.DB.prepare("SELECT is_admin FROM users WHERE username = 'solo'")
+      .first<{ is_admin: number }>();
+    expect(row?.is_admin).toBe(0);
+  });
+
+  it("allows demoting an admin when another admin exists", async () => {
+    await testEnv.DB.batch([
+      testEnv.DB.prepare("INSERT INTO users (id, username, password, is_admin) VALUES ('ua1','adm1','pw',1)"),
+      testEnv.DB.prepare("INSERT INTO users (id, username, password, is_admin) VALUES ('ua2','adm2','pw',1)"),
+    ]);
+    const r = await call("updateUser", { username: "adm1", adminRole: "false", ...ADMIN() });
+    expect(r.status).toBe(200);
+    const row = await testEnv.DB.prepare("SELECT is_admin FROM users WHERE username = 'adm1'")
+      .first<{ is_admin: number }>();
+    expect(row?.is_admin).toBe(0);
+  });
+
+  it("refuses to demote the last admin when NO bootstrap admin is configured (error 50)", async () => {
+    const noBootstrap = { ...testEnv, ADMIN_USERNAME: "" };
+    // testEnv and noBootstrap share the same DB binding, so this row is visible to both.
+    await testEnv.DB.prepare(
+      "INSERT INTO users (id, username, password, is_admin) VALUES ('ua','solo','pw',1)"
+    ).run();
+    // Drive the handler directly against the no-bootstrap env (call/callJson capture testEnv).
+    // solo authenticates via token auth over its DB password; isAdmin derives from the DB row.
+    const qs = new URLSearchParams({
+      username: "solo",
+      adminRole: "false",
+      ...tokenAuth("solo", "pw"),
+      f: "json",
+    }).toString();
+    const res = await handleApiRequest(new Request("http://x/rest/updateUser?" + qs), noBootstrap);
+    const body = (await res.json() as Record<string, any>)["subsonic-response"];
+    expect(body.error.code).toBe(50);
+    const row = await testEnv.DB.prepare("SELECT is_admin FROM users WHERE username = 'solo'")
+      .first<{ is_admin: number }>();
+    expect(row?.is_admin).toBe(1); // demotion was blocked
   });
 });
 

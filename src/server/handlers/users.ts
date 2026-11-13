@@ -188,6 +188,28 @@ export async function handleUpdateUser(params: URLSearchParams, env: Env): Promi
   const username = params.get("username");
   if (!username) return respondError(params, env, 10, "Missing parameter: username");
 
+  // Last-admin guard (mirrors handleDeleteUser): if this update would DEMOTE an admin —
+  // adminRole present and resolving to non-admin — refuse when it would leave the server
+  // with no admin and no configured bootstrap admin (a lockout). Only blocks a real demotion.
+  const adminRoleParam = params.get("adminRole");
+  if (adminRoleParam !== null && adminRoleParam !== "true") {
+    const target = await env.DB.prepare("SELECT is_admin FROM users WHERE username = ?")
+      .bind(username)
+      .first<{ is_admin: number }>();
+    if (target?.is_admin) {
+      const others = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM users WHERE is_admin = 1 AND username != ?"
+      )
+        .bind(username)
+        .first<{ n: number }>();
+      const bootstrapConfigured =
+        typeof env.ADMIN_USERNAME === "string" && env.ADMIN_USERNAME.length > 0;
+      if ((others?.n ?? 0) === 0 && !bootstrapConfigured) {
+        return respondError(params, env, 50, "Cannot remove admin from the last admin user");
+      }
+    }
+  }
+
   const sets: string[] = [];
   const binds: unknown[] = [];
   const email = params.get("email");
