@@ -53,6 +53,51 @@ describe("search3 / search2", () => {
   });
 });
 
+describe("search wildcard escaping", () => {
+  const albumNames = (r: Record<string, any>) =>
+    (r.searchResult3.album ?? []).map((a: { name: string }) => a.name);
+
+  it("treats a literal % in the query as a character, not a wildcard", async () => {
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        `INSERT INTO albums (id, name, artist_id, artist_name) VALUES
+           ('albp','100% Pure','art1','The Beatles'),
+           ('albt','1000 Songs','art1','The Beatles')`
+      ),
+    ]);
+    const r = await callJson("search3", { query: "100%", ...ALICE() });
+    const got = albumNames(r);
+    expect(got).toContain("100% Pure");
+    expect(got).not.toContain("1000 Songs");
+  });
+
+  it("still does ordinary substring matching", async () => {
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        `INSERT INTO albums (id, name, artist_id, artist_name) VALUES
+           ('albp','100% Pure','art1','The Beatles'),
+           ('albt','1000 Songs','art1','The Beatles')`
+      ),
+    ]);
+    const r = await callJson("search3", { query: "Pure", ...ALICE() });
+    expect(albumNames(r)).toContain("100% Pure");
+  });
+
+  it("treats a literal _ in the query as a character, not a wildcard", async () => {
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        `INSERT INTO albums (id, name, artist_id, artist_name) VALUES
+           ('alu','a_b side','art1','The Beatles'),
+           ('alx','axb side','art1','The Beatles')`
+      ),
+    ]);
+    const r = await callJson("search3", { query: "a_b", ...ALICE() });
+    const got = albumNames(r);
+    expect(got).toContain("a_b side");
+    expect(got).not.toContain("axb side");
+  });
+});
+
 describe("getAlbumList2 filters", () => {
   const names = (r: Record<string, any>) => r.albumList2.album.map((a: { name: string }) => a.name);
 

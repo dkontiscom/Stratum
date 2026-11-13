@@ -34,6 +34,11 @@ interface SearchHits {
   songs: AnnotatedTrack[];
 }
 
+/** Escape SQL LIKE metacharacters (backslash, percent, underscore) for use with ESCAPE '\'. */
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => "\\" + c);
+}
+
 /** Run the three LIKE queries (artists/albums/songs) with bound params. */
 async function runSearch(
   env: Env,
@@ -48,7 +53,7 @@ async function runSearch(
     songOffset: number;
   }
 ): Promise<SearchHits> {
-  const like = `%${query}%`;
+  const like = `%${escapeLike(query)}%`;
 
   const [artists, albums, songs] = await Promise.all([
     env.DB.prepare(
@@ -58,7 +63,7 @@ async function runSearch(
          FROM artists ar
          LEFT JOIN annotations ann
            ON ann.user = ? AND ann.item_type = 'artist' AND ann.item_id = ar.id
-        WHERE ar.name LIKE ?
+        WHERE ar.name LIKE ? ESCAPE '\\'
         ORDER BY ar.name COLLATE NOCASE
         LIMIT ? OFFSET ?`
     )
@@ -69,7 +74,7 @@ async function runSearch(
          FROM albums al
          LEFT JOIN annotations ann
            ON ann.user = ? AND ann.item_type = 'album' AND ann.item_id = al.id
-        WHERE al.name LIKE ? OR al.artist_name LIKE ?
+        WHERE al.name LIKE ? ESCAPE '\\' OR al.artist_name LIKE ? ESCAPE '\\'
         ORDER BY al.name COLLATE NOCASE
         LIMIT ? OFFSET ?`
     )
@@ -80,7 +85,7 @@ async function runSearch(
          FROM tracks t
          LEFT JOIN annotations ann
            ON ann.user = ? AND ann.item_type = 'track' AND ann.item_id = t.id
-        WHERE t.title LIKE ? OR t.artist_name LIKE ? OR t.album_name LIKE ?
+        WHERE t.title LIKE ? ESCAPE '\\' OR t.artist_name LIKE ? ESCAPE '\\' OR t.album_name LIKE ? ESCAPE '\\'
         ORDER BY t.title COLLATE NOCASE
         LIMIT ? OFFSET ?`
     )
