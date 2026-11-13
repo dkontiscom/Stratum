@@ -110,3 +110,6 @@ export function tokenAuth(username: string, password: string): Record<string, st
 
 /** Alice's standard token-auth block (the seeded non-admin user). */
 export const ALICE = (): Record<string, string> => tokenAuth("alice", "pw-alice");
+
+/** Bootstrap-admin auth block (no DB row; admin via ADMIN_USERNAME/ADMIN_PASSWORD). */
+export const ADMIN = (): Record<string, string> => ({ u: "admin", p: ADMIN_PASSWORD });
