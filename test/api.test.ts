@@ -4,91 +4,11 @@
 // cover the auth mechanisms, the response-format dispatch, and a browsing read.
 
 import { describe, it, expect, beforeAll } from "vitest";
-import { env } from "cloudflare:test";
-import { Md5 } from "ts-md5";
-// Vite imports the schema file as a raw string so there is no fixture to ship and no
-// Node fs dependency inside the worker runtime.
-import schemaSql from "../schema/schema.sql?raw";
-import { handleApiRequest } from "../src/server/router";
-import type { Env } from "../src/shared";
-
-// Bootstrap admin password is a secret (not in wrangler vars), so inject it for the env.
-const ADMIN_PASSWORD = "s3cret-admin";
-const testEnv = { ...(env as unknown as Env), ADMIN_PASSWORD };
-
-/**
- * Split schema.sql into individual statements. We strip `--` comments to end-of-line
- * FIRST (one of them, "-- seconds; same across formats", contains a semicolon that would
- * otherwise split a statement in half), then split on `;`. No string literal in the
- * schema contains `--`, so the naive strip is safe here.
- */
-function schemaStatements(sql: string): string[] {
-  return sql
-    .split("\n")
-    .map((line) => {
-      const i = line.indexOf("--");
-      return i >= 0 ? line.slice(0, i) : line;
-    })
-    .join("\n")
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-}
-
-/** Drive the router with a GET to /rest/<method> and the given query params. */
-async function call(method: string, query: Record<string, string> = {}): Promise<Response> {
-  const qs = new URLSearchParams(query).toString();
-  const url = `http://stratum.test/rest/${method}${qs ? `?${qs}` : ""}`;
-  return handleApiRequest(new Request(url), testEnv);
-}
-
-/** Call expecting JSON (f=json) and return the parsed `subsonic-response` object. */
-async function callJson(
-  method: string,
-  query: Record<string, string> = {}
-): Promise<Record<string, any>> {
-  const res = await call(method, { f: "json", ...query });
-  const body = (await res.json()) as Record<string, any>;
-  return body["subsonic-response"];
-}
-
-/** Token-auth params for a stored plaintext password. */
-function tokenAuth(username: string, password: string): Record<string, string> {
-  const salt = "napsalt";
-  return { u: username, t: Md5.hashStr(password + salt) as string, s: salt };
-}
+import { applySchema, seedLibrary, call, callJson, tokenAuth, ALICE, ADMIN_PASSWORD } from "./helpers";
 
 beforeAll(async () => {
-  for (const stmt of schemaStatements(schemaSql)) {
-    await testEnv.DB.prepare(stmt).run();
-  }
-  // Seed: one backend, one artist ("The Beatles" → index bucket "B"), album, track, file.
-  await testEnv.DB.batch([
-    testEnv.DB.prepare(
-      `INSERT INTO storage_backends (id, name, type, bucket, role) VALUES ('garage-home','Home','garage','music','primary')`
-    ),
-    testEnv.DB.prepare(
-      `INSERT INTO artists (id, name) VALUES ('art1','The Beatles')`
-    ),
-    testEnv.DB.prepare(
-      `INSERT INTO albums (id, name, artist_id, artist_name, year, song_count, duration)
-       VALUES ('alb1','Abbey Road','art1','The Beatles',1969,1,180)`
-    ),
-    testEnv.DB.prepare(
-      `INSERT INTO tracks (id, title, album_id, album_name, artist_id, artist_name,
-                           track_number, duration, suffix, content_type, bit_rate, size)
-       VALUES ('trk1','Come Together','alb1','Abbey Road','art1','The Beatles',
-               1,180,'flac','audio/flac',900,12345)`
-    ),
-    testEnv.DB.prepare(
-      `INSERT INTO track_files (id, track_id, backend_id, key, format, is_original)
-       VALUES ('tf1','trk1','garage-home','Beatles/AbbeyRoad/01.flac','flac',1)`
-    ),
-    testEnv.DB.prepare(
-      `INSERT INTO users (id, username, password, is_admin, api_key)
-       VALUES ('u1','alice','pw-alice',0,'KEY-ALICE')`
-    ),
-  ]);
+  await applySchema();
+  await seedLibrary();
 });
 
 describe("authentication", () => {
@@ -105,7 +25,7 @@ describe("authentication", () => {
   });
 
   it("accepts token auth (t = MD5(password + salt))", async () => {
-    const r = await callJson("ping", tokenAuth("alice", "pw-alice"));
+    const r = await callJson("ping", ALICE());
     expect(r.status).toBe("ok");
   });
 
@@ -139,7 +59,7 @@ describe("authentication", () => {
 
 describe("response format + handshake", () => {
   it("returns a well-formed JSON envelope", async () => {
-    const r = await callJson("ping", tokenAuth("alice", "pw-alice"));
+    const r = await callJson("ping", ALICE());
     expect(r.status).toBe("ok");
     expect(r.openSubsonic).toBe(true);
     expect(typeof r.version).toBe("string");
@@ -147,7 +67,7 @@ describe("response format + handshake", () => {
   });
 
   it("defaults to XML and escapes correctly", async () => {
-    const res = await call("ping", tokenAuth("alice", "pw-alice"));
+    const res = await call("ping", ALICE());
     expect(res.headers.get("content-type")).toContain("xml");
     const text = await res.text();
     expect(text).toContain('status="ok"');
@@ -155,19 +75,19 @@ describe("response format + handshake", () => {
   });
 
   it("getLicense reports a valid license", async () => {
-    const r = await callJson("getLicense", tokenAuth("alice", "pw-alice"));
+    const r = await callJson("getLicense", ALICE());
     expect(r.license.valid).toBe(true);
   });
 
   it("getOpenSubsonicExtensions advertises formPost + apiKeyAuthentication", async () => {
-    const r = await callJson("getOpenSubsonicExtensions", tokenAuth("alice", "pw-alice"));
+    const r = await callJson("getOpenSubsonicExtensions", ALICE());
     const names = r.openSubsonicExtensions.map((e: { name: string }) => e.name);
     expect(names).toContain("formPost");
     expect(names).toContain("apiKeyAuthentication");
   });
 
   it("returns error 0 for an unknown method (authed)", async () => {
-    const r = await callJson("noSuchMethod", tokenAuth("alice", "pw-alice"));
+    const r = await callJson("noSuchMethod", ALICE());
     expect(r.status).toBe("failed");
     expect(r.error.code).toBe(0);
   });
@@ -175,12 +95,12 @@ describe("response format + handshake", () => {
 
 describe("browsing (seeded library)", () => {
   it("getMusicFolders returns the single logical folder", async () => {
-    const r = await callJson("getMusicFolders", tokenAuth("alice", "pw-alice"));
+    const r = await callJson("getMusicFolders", ALICE());
     expect(r.musicFolders.musicFolder[0]).toMatchObject({ id: "1", name: "Music" });
   });
 
   it("getArtists buckets 'The Beatles' under 'B' with a real album count", async () => {
-    const r = await callJson("getArtists", tokenAuth("alice", "pw-alice"));
+    const r = await callJson("getArtists", ALICE());
     const bucketB = r.artists.index.find((i: { name: string }) => i.name === "B");
     expect(bucketB).toBeDefined();
     const beatles = bucketB.artist.find((a: { name: string }) => a.name === "The Beatles");
@@ -188,12 +108,12 @@ describe("browsing (seeded library)", () => {
   });
 
   it("getArtist lists the artist's albums", async () => {
-    const r = await callJson("getArtist", { id: "art1", ...tokenAuth("alice", "pw-alice") });
+    const r = await callJson("getArtist", { id: "art1", ...ALICE() });
     expect(r.artist.album[0]).toMatchObject({ id: "alb1", name: "Abbey Road" });
   });
 
   it("getSong returns the seeded track with its original-file properties", async () => {
-    const r = await callJson("getSong", { id: "trk1", ...tokenAuth("alice", "pw-alice") });
+    const r = await callJson("getSong", { id: "trk1", ...ALICE() });
     expect(r.song).toMatchObject({
       id: "trk1",
       title: "Come Together",
