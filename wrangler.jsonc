@@ -17,7 +17,7 @@
     {
       "binding": "DB",
       "database_name": "stratum-db",
-      "database_id": "YOUR_D1_DATABASE_ID" // fill in after `wrangler d1 create stratum-db`
+      "database_id": "fb8e8d6e-7029-4038-9f3e-563f276485c6"
     }
   ],
 
